@@ -212,8 +212,8 @@ message_loop :: proc() -> int {
 	return int(msg.wParam)
 }
 
-get_clipboard_text :: proc(hwnd: win.HWND) -> string {
-    if !win.OpenClipboard(hwnd) {
+get_clipboard_text :: proc() -> string {
+    if !win.OpenClipboard(nil) {
         return ""
     }
     defer win.CloseClipboard()
@@ -249,7 +249,7 @@ run :: proc() -> int {
 
 	text : string
 	if len(os.args) < 2 {
-		text = get_clipboard_text(nil)
+		text = get_clipboard_text()
     }
     else {
 	    text = os.args[1]
