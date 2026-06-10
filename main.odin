@@ -47,11 +47,6 @@ App :: struct {
 	window:  Window,
 }
 
-Cell :: struct {
-	width:  f32,
-	height: f32,
-}
-
 draw_qr_code :: #force_inline proc(app: ^App) {
 	stride := app.qrsize + 3
 	total_size := stride * app.qrsize
