@@ -3,7 +3,7 @@
 - [x] Open window
 - [x] Draw square
 - [x] Draw fake QR
-- [ ] Real QR
+- [x] Real QR
 - [ ] Clipboard
 - [ ] Hotkey
 - [ ] Toggle visibility
