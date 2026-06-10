@@ -1,5 +1,6 @@
 package qr_fun
 
+import "core:mem"
 import "base:runtime"
 import win "core:sys/windows"
 import fmt "core:fmt"
@@ -53,6 +54,8 @@ Cell :: struct {
 
 draw_qr_code :: #force_inline proc(app: ^App) {
 	stride := app.qrsize + 3
+	total_size := stride * app.qrsize
+	mem.zero_explicit(app.pvBits, total_size)
 	for y in 0..<app.qrsize {
 	    row_offset := y * stride
 	    for x in 0..<app.qrsize {
