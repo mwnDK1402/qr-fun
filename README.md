@@ -1,8 +1,8 @@
 # Todo
 
 - [x] Open window
-- [ ] Draw square
-- [ ] Draw fake QR
+- [x] Draw square
+- [x] Draw fake QR
 - [ ] Real QR
 - [ ] Clipboard
 - [ ] Hotkey
