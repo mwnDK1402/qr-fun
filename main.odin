@@ -215,11 +215,15 @@ message_loop :: proc() -> int {
 }
 
 run :: proc() -> int {
-	text :: "https://github.com/nayuki/QR-Code-generator/blob/master/c/qrcodegen-demo.c"
+	if len(os.args) < 2 {
+        fmt.println("Usage: qr-fun <text>")
+        return 1
+    }
+    text := os.args[1]
 	ecc :: qr.Ecc.LOW
 	qrcode : [qr.BUFFER_LEN_MAX]u8
 	tmp_buf : [qr.BUFFER_LEN_MAX]u8
-	ok := qr.encodeText(text, raw_data(tmp_buf[:]), raw_data(qrcode[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
+	ok := qr.encodeText(cstring(raw_data(text)), raw_data(tmp_buf[:]), raw_data(qrcode[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
 	if !ok {show_error_and_panic("failed to create qr code")}
 	qr_size := qr.getSize(raw_data(qrcode[:]))
 
