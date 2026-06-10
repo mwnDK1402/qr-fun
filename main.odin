@@ -255,6 +255,9 @@ run :: proc() -> int {
 	    text = os.args[1]
     }
 
+    if text == "" { return 1 }
+    fmt.println(text)
+
 	ecc :: qr.Ecc.LOW
 	qrcode : [qr.BUFFER_LEN_MAX]u8
 	tmp_buf : [qr.BUFFER_LEN_MAX]u8
