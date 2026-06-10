@@ -7,6 +7,13 @@ import fmt "core:fmt"
 import os "core:os"
 import qr "qrcodegen"
 
+MOD_ALT 	:: 0x1
+MOD_CONTROL :: 0x2
+MOD_SHIFT 	:: 0x4
+MOD_WIN 	:: 0x8
+
+HOTKEY_ID :: 1
+
 Color :: [4]u8
 Int2 :: [2]i32
 
@@ -203,9 +210,18 @@ create_window :: #force_inline proc(instance: win.HINSTANCE, atom: win.ATOM, app
 	return win.CreateWindowW(CLASS_NAME, app.window.name, style, pos.x, pos.y, size.x, size.y, nil, nil, instance, app)
 }
 
+WM_HOTKEY :: proc(wparam: win.WPARAM) {
+	if wparam != HOTKEY_ID { return }
+	fmt.println("Hotkey pressed!")
+}
+
 message_loop :: proc() -> int {
 	msg: win.MSG
 	for win.GetMessageW(&msg, nil, 0, 0) > 0 {
+		if msg.message == win.WM_HOTKEY {
+			WM_HOTKEY(msg.wParam)
+			continue
+		}
 		win.TranslateMessage(&msg)
 		win.DispatchMessageW(&msg)
 	}
@@ -258,13 +274,15 @@ run :: proc() -> int {
     if text == "" { return 1 }
     fmt.println(text)
 
-	ecc :: qr.Ecc.LOW
-	qrcode : [qr.BUFFER_LEN_MAX]u8
-	tmp_buf : [qr.BUFFER_LEN_MAX]u8
-	ok := qr.encodeText(cstring(raw_data(text)), raw_data(tmp_buf[:]), raw_data(qrcode[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
-	if !ok {show_error_and_panic("failed to create qr code")}
-	qr_size := qr.getSize(raw_data(qrcode[:]))
-
+    qrcode : [qr.BUFFER_LEN_MAX]u8
+    qr_size : i32
+    {
+	    tmp_buf : [qr.BUFFER_LEN_MAX]u8
+		ecc :: qr.Ecc.LOW
+		ok := qr.encodeText(cstring(raw_data(text)), raw_data(tmp_buf[:]), raw_data(qrcode[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
+		if !ok {show_error_and_panic("Failed to create qr code")}
+		qr_size = qr.getSize(raw_data(qrcode[:]))
+    }
 	app := App {
 		window = Window{name = TITLE, size = WINDOW_SIZE, control_flags = {.CENTER}},
 		qrcode = qrcode,
@@ -274,10 +292,13 @@ run :: proc() -> int {
 	// This isn't exactly equivalent to getting the hInstance argument passed to wWinMain in C,
 	// but it's good enough for all intents and purposes.
 	instance := win.HINSTANCE(win.GetModuleHandleW(nil))
-	if (instance == nil) {show_error_and_panic("No instance")}
+	if instance == nil {show_error_and_panic("No instance")}
 	atom := register_class(instance)
 	if atom == 0 {show_error_and_panic("Failed to register window class")}
 	defer unregister_class(atom, instance)
+
+	ok := win.RegisterHotKey(nil, HOTKEY_ID, MOD_CONTROL | MOD_ALT, win.VK_Q)
+	if !ok {show_error_and_panic("Failed to register hotkey")}
 
 	hwnd := create_window(instance, atom, &app)
 	if hwnd == nil {show_error_and_panic("Failed to create window")}
