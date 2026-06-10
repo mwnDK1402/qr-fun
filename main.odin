@@ -4,13 +4,13 @@ import "base:runtime"
 import win "core:sys/windows"
 import fmt "core:fmt"
 import os "core:os"
+import qr "qrcodegen"
 
 Color :: [4]u8
 Int2 :: [2]i32
 
 TITLE :: "QR Fun"
 WINDOW_SIZE :: Int2 {708, 708}
-QR_SIZE :: Int2 {4, 4}
 CLASS_NAME :: "QrMainClass"
 
 BLACK :: Color{0, 0, 0, 255}
@@ -39,8 +39,8 @@ Window :: struct {
 }
 
 App :: struct {
-	colors:  Color_Palette,
-	size:    Int2,
+	qrcode: [qr.BUFFER_LEN_MAX]u8,
+	qrsize: int,
 	hbitmap: win.HBITMAP,
 	pvBits:  Screen_Buffer,
 	window:  Window,
@@ -51,9 +51,16 @@ Cell :: struct {
 	height: f32,
 }
 
-draw_qr_code :: #force_inline proc(app: ^App, data: [^]u8) {
-	cnt := int(QR_SIZE[0] * QR_SIZE[1])
-	runtime.mem_copy(app.pvBits, data, cnt)
+draw_qr_code :: #force_inline proc(app: ^App) {
+	stride := app.qrsize + 3
+	for y in 0..<app.qrsize {
+	    row_offset := y * stride
+	    for x in 0..<app.qrsize {
+	        if qr.getModule(raw_data(app.qrcode[:]), i32(x), i32(y)) {
+	            app.pvBits[row_offset + x] = 1   // black
+	        }
+	    }
+	}
 }
 
 message_box :: #force_inline proc(text, caption: string, loc := #caller_location) {
@@ -84,23 +91,18 @@ WM_CREATE :: proc(hwnd: win.HWND, lparam: win.LPARAM) -> win.LRESULT {
 	bitmap_info := Bitmap_Info {
 		bmiHeader = win.BITMAPINFOHEADER {
 			biSize        = size_of(win.BITMAPINFOHEADER),
-			biWidth       = app.size.x,
-			biHeight      = -app.size.y, // minus for top-down
+			biWidth       = i32(app.qrsize),
+			biHeight      = i32(-app.qrsize), // minus for top-down
 			biPlanes      = 1,
 			biBitCount    = 8,
 			biCompression = win.BI_RGB,
-			biClrUsed     = len(app.colors),
+			biClrUsed     = 2,
 		},
-		bmiColors = app.colors,
+		bmiColors = {WHITE, BLACK},
 	}
-	app.hbitmap = win.CreateDIBSection(hdc, cast(^win.BITMAPINFO)&bitmap_info, win.DIB_RGB_COLORS, (^rawptr)(&app.pvBits), nil, 0)
 
-	draw_qr_code(app, raw_data(&[16]u8{
-		1, 0, 1, 0,
-		0, 1, 0, 1,
-		1, 0, 1, 0,
-		0, 1, 0, 1
-	}))
+	app.hbitmap = win.CreateDIBSection(hdc, cast(^win.BITMAPINFO)&bitmap_info, win.DIB_RGB_COLORS, (^rawptr)(&app.pvBits), nil, 0)
+	draw_qr_code(app)
 
 	return 0
 }
@@ -132,7 +134,7 @@ WM_PAINT :: proc(hwnd: win.HWND) -> win.LRESULT {
 
 		win.SelectObject(hdc_source, win.HGDIOBJ(app.hbitmap))
 		client_size := get_rect_size(&ps.rcPaint)
-		win.StretchBlt(hdc, 0, 0, client_size.x, client_size.y, hdc_source, 0, 0, app.size.x, app.size.y, win.SRCCOPY)
+		win.StretchBlt(hdc, 0, 0, client_size.x, client_size.y, hdc_source, 0, 0, i32(app.qrsize), i32(app.qrsize), win.SRCCOPY)
 	}
 
 	return 0
@@ -213,10 +215,18 @@ message_loop :: proc() -> int {
 }
 
 run :: proc() -> int {
+	text :: "https://github.com/nayuki/QR-Code-generator/blob/master/c/qrcodegen-demo.c"
+	ecc :: qr.Ecc.LOW
+	qrcode : [qr.BUFFER_LEN_MAX]u8
+	tmp_buf : [qr.BUFFER_LEN_MAX]u8
+	ok := qr.encodeText(text, raw_data(tmp_buf[:]), raw_data(qrcode[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
+	if !ok {show_error_and_panic("failed to create qr code")}
+	qr_size := qr.getSize(raw_data(qrcode[:]))
+
 	app := App {
-		colors = {BLACK, WHITE},
-		size = QR_SIZE,
 		window = Window{name = TITLE, size = WINDOW_SIZE, control_flags = {.CENTER}},
+		qrcode = qrcode,
+		qrsize = int(qr_size),
 	}
 
 	// This isn't exactly equivalent to getting the hInstance argument passed to wWinMain in C,
