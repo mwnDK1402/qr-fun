@@ -212,12 +212,47 @@ message_loop :: proc() -> int {
 	return int(msg.wParam)
 }
 
-run :: proc() -> int {
-	if len(os.args) < 2 {
-        fmt.println("Usage: qr-fun <text>")
-        return 1
+get_clipboard_text :: proc(hwnd: win.HWND) -> string {
+	@static utf8_buf : [1024]u8
+    if !win.OpenClipboard(hwnd) {
+        return ""
     }
-    text := os.args[1]
+    defer win.CloseClipboard()
+
+    if !win.IsClipboardFormatAvailable(win.CF_UNICODETEXT) {
+        return ""
+    }
+
+    hData := win.GetClipboardData(win.CF_UNICODETEXT)
+    if hData == nil {
+        return ""
+    }
+
+    h := win.HGLOBAL(hData)
+    vptr := win.GlobalLock(h)
+    if vptr == nil {
+        return ""
+    }
+    defer win.GlobalUnlock(h)
+
+    wptr := cast(^u16)vptr
+    len := 0
+    for ;mem.ptr_offset(wptr, len)^ != 0; len += 1 { }
+    utf16 := mem.slice_ptr(wptr, len)
+    text := win.utf16_to_utf8_buf(utf8_buf[:], utf16[:])
+
+    return text
+}
+
+run :: proc() -> int {
+	text : string
+	if len(os.args) < 2 {
+		text = get_clipboard_text(nil)
+    }
+    else {
+	    text = os.args[1]
+    }
+
 	ecc :: qr.Ecc.LOW
 	qrcode : [qr.BUFFER_LEN_MAX]u8
 	tmp_buf : [qr.BUFFER_LEN_MAX]u8
