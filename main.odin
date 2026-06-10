@@ -213,7 +213,6 @@ message_loop :: proc() -> int {
 }
 
 get_clipboard_text :: proc(hwnd: win.HWND) -> string {
-	@static utf8_buf : [1024]u8
     if !win.OpenClipboard(hwnd) {
         return ""
     }
@@ -239,12 +238,15 @@ get_clipboard_text :: proc(hwnd: win.HWND) -> string {
     len := 0
     for ;mem.ptr_offset(wptr, len)^ != 0; len += 1 { }
     utf16 := mem.slice_ptr(wptr, len)
-    text := win.utf16_to_utf8_buf(utf8_buf[:], utf16[:])
+    text, err := win.utf16_to_utf8_alloc(utf16[:], context.temp_allocator)
+    if err != nil { show_error_and_panic("Arena allocation error") }
 
     return text
 }
 
 run :: proc() -> int {
+	defer free_all(context.temp_allocator)
+
 	text : string
 	if len(os.args) < 2 {
 		text = get_clipboard_text(nil)
