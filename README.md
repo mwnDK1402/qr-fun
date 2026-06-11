@@ -5,8 +5,12 @@
 - [x] Draw fake QR
 - [x] Real QR
 - [x] Clipboard
-- [x] Hotkey
-- [ ] Toggle visibility
+- [x] "Open" hotkey
+- [ ] "Exit" hotkey
+- [ ] Open near cursor
+- [ ] Relative sizing 
+- [ ] Always on top
+- [ ] Copy QR to clipboard
 
 # References
 
