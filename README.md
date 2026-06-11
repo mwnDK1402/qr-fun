@@ -7,6 +7,8 @@
 - [x] Clipboard
 - [x] "Open" hotkey
 - [ ] "Exit" hotkey
+- [ ] Close window when focus is lost
+- [ ] Remove borders
 - [ ] Open near cursor
 - [ ] Relative sizing 
 - [ ] Always on top
