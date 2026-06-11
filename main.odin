@@ -82,17 +82,17 @@ draw_qr_code :: #force_inline proc(pvBits: Screen_Buffer, qrcode: []u8, qrsize: 
 }
 
 WM_CREATE :: proc(hwnd: win.HWND, lparam: win.LPARAM) -> win.LRESULT {
+	defer free_all(context.temp_allocator)
 	pcs := (^win.CREATESTRUCTW)(rawptr(uintptr(lparam)))
 	if pcs == nil {show_error_and_panic("lparam is nil")}
-	win_data := (^Window)(pcs.lpCreateParams)
-	if win_data == nil {show_error_and_panic("lpCreateParams is nil")}
-	set_win_data(hwnd, win_data)
+	params := (^CreateParams)(pcs.lpCreateParams)
+	if params.win_data == nil {show_error_and_panic("lpCreateParams is nil")}
+	set_win_data(hwnd, params.win_data)
 
 	hdc := win.GetDC(hwnd)
 	defer win.ReleaseDC(hwnd, hdc)
 
-	defer free_all(context.temp_allocator)
-	text := get_clipboard_text()
+	text := params.clipboard
 	fmt.println(text)
 
 	qrcode : [qr.BUFFER_LEN_MAX]u8
@@ -116,8 +116,8 @@ WM_CREATE :: proc(hwnd: win.HWND, lparam: win.LPARAM) -> win.LRESULT {
 	}
 
 	pvBits: Screen_Buffer
-	win_data.hbitmap = win.CreateDIBSection(hdc, cast(^win.BITMAPINFO)&bitmap_info, win.DIB_RGB_COLORS, (^rawptr)(&pvBits), nil, 0)
-	win_data.qrsize = qr_size
+	params.win_data.hbitmap = win.CreateDIBSection(hdc, cast(^win.BITMAPINFO)&bitmap_info, win.DIB_RGB_COLORS, (^rawptr)(&pvBits), nil, 0)
+	params.win_data.qrsize = qr_size
 	draw_qr_code(pvBits, qrcode[:], qr_size)
 
 	return 0
@@ -209,44 +209,38 @@ center_window :: proc(position: ^Int2, size: Int2) {
 	}
 }
 
-create_window :: #force_inline proc(instance: win.HINSTANCE, atom: win.ATOM, win_data: ^Window) -> win.HWND {
+CreateParams :: struct {
+    win_data: ^Window,
+    clipboard: string,
+}
+
+create_window :: #force_inline proc(instance: win.HINSTANCE, atom: win.ATOM, params: ^CreateParams) -> win.HWND {
 	if atom == 0 {show_error_and_panic("atom is zero")}
-	size := &win_data.size
+	size := &params.win_data.size
 	style :: win.WS_OVERLAPPED | win.WS_CAPTION | win.WS_SYSMENU
 	pos := Int2{i32(win.CW_USEDEFAULT), i32(win.CW_USEDEFAULT)}
 	adjust_size_for_style(size, style)
 	center_window(&pos, size^)
-	return win.CreateWindowW(CLASS_NAME, TITLE, style, pos.x, pos.y, size.x, size.y, nil, nil, instance, win_data)
+	return win.CreateWindowW(CLASS_NAME, TITLE, style, pos.x, pos.y, size.x, size.y, nil, nil, instance, params)
 }
 
 get_clipboard_text :: proc() -> string {
-    if !win.OpenClipboard(nil) {
-        return ""
-    }
+    if !win.OpenClipboard(nil) { return "" }
     defer win.CloseClipboard()
 
-    if !win.IsClipboardFormatAvailable(win.CF_UNICODETEXT) {
-        return ""
-    }
+    if !win.IsClipboardFormatAvailable(win.CF_UNICODETEXT) { return "" }
 
     hData := win.GetClipboardData(win.CF_UNICODETEXT)
-    if hData == nil {
-        return ""
-    }
+    if hData == nil { return "" }
 
     h := win.HGLOBAL(hData)
     vptr := win.GlobalLock(h)
-    if vptr == nil {
-        return ""
-    }
+    if vptr == nil { return "" }
     defer win.GlobalUnlock(h)
 
-    wptr := cast(^u16)vptr
-    len := 0
-    for ;mem.ptr_offset(wptr, len)^ != 0; len += 1 { }
-    utf16 := mem.slice_ptr(wptr, len)
-    text, err := win.utf16_to_utf8_alloc(utf16[:], context.temp_allocator)
-    if err != nil { show_error_and_panic("Arena allocation error") }
+    size := int(win.GlobalSize(h) / 2)
+    text, err := win.wstring_to_utf8(win.wstring(vptr), size, context.temp_allocator)
+    if err != nil { return "" }
 
     return text
 }
@@ -254,9 +248,14 @@ get_clipboard_text :: proc() -> string {
 WM_HOTKEY :: proc(app: ^App, wparam: win.WPARAM) {
 	if wparam != HOTKEY_ID { return }
 
+	clipboard := get_clipboard_text()
+	if clipboard == "" { return }
 	win_data := new(Window)
 	win_data.size = WINDOW_SIZE
-	hwnd := create_window(app.instance, app.atom, win_data)
+	params := new(CreateParams, context.temp_allocator)
+	params.win_data = win_data
+	params.clipboard = clipboard
+	hwnd := create_window(app.instance, app.atom, params)
 	if hwnd == nil {show_error_and_panic("Failed to create window")}
 	win.ShowWindow(hwnd, win.SW_SHOWDEFAULT)
 	win.UpdateWindow(hwnd)
