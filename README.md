@@ -4,8 +4,8 @@
 - [x] Draw square
 - [x] Draw fake QR
 - [x] Real QR
-- [ ] Clipboard
-- [ ] Hotkey
+- [x] Clipboard
+- [x] Hotkey
 - [ ] Toggle visibility
 
 # References
