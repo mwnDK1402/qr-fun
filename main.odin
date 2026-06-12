@@ -257,8 +257,9 @@ WM_HOTKEY :: proc(app: ^App, wparam: win.WPARAM) {
 	params.clipboard = clipboard
 	hwnd := create_window(app.instance, app.atom, params)
 	if hwnd == nil {show_error_and_panic("Failed to create window")}
-	win.ShowWindow(hwnd, win.SW_SHOWDEFAULT)
+	win.ShowWindow(hwnd, win.SW_SHOW)
 	win.UpdateWindow(hwnd)
+	win.SetForegroundWindow(hwnd)
 }
 
 message_loop :: proc(app: ^App) -> int {
