@@ -6,7 +6,7 @@
 - [x] Real QR
 - [x] Clipboard
 - [x] "Open" hotkey
-- [ ] "Exit" hotkey
+- [x] "Exit" hotkey
 - [ ] Close window when focus is lost
 - [ ] Remove borders
 - [ ] Open near cursor
