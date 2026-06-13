@@ -163,22 +163,13 @@ create_window :: #force_inline proc(instance: win.HINSTANCE, atom: win.ATOM, cli
 	params.wnd_data = new(Window)
 	params.clipboard = clipboard
 	params.wnd_data.size = WINDOW_SIZE
-	size := &params.wnd_data.size
 
-	style :: win.WS_OVERLAPPED | win.WS_CAPTION | win.WS_SYSMENU
-	adjust_size_for_style(size, style)
-
+	style :: win.WS_POPUP
 	pos := Int2{i32(win.CW_USEDEFAULT), i32(win.CW_USEDEFAULT)}
-	center_window(&pos, size^)
+	size := params.wnd_data.size
+	center_window(&pos, size)
 
 	return win.CreateWindowW(CLASS_NAME, TITLE, style, pos.x, pos.y, size.x, size.y, nil, nil, instance, params)
-}
-
-adjust_size_for_style :: proc(size: ^Int2, style: win.DWORD) {
-	rect := win.RECT{0, 0, size.x, size.y}
-	if win.AdjustWindowRect(&rect, style, false) {
-		size^ = {i32(rect.right - rect.left), i32(rect.bottom - rect.top)}
-	}
 }
 
 center_window :: proc(position: ^Int2, size: Int2) {
