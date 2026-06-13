@@ -32,7 +32,8 @@ main :: proc() {
 	os.exit(exit_code)
 }
 
-HOTKEY_ID :: 1
+OPEN_HOTKEY :: 1
+QUIT_HOTKEY :: 2
 
 MOD_ALT 	:: 0x1
 MOD_CONTROL :: 0x2
@@ -54,10 +55,15 @@ run :: proc() -> int {
 		atom = atom
 	}
 
-	ok := win.RegisterHotKey(nil, HOTKEY_ID, MOD_CONTROL | MOD_ALT, win.VK_Q)
-	if !ok {show_error_and_panic("Failed to register hotkey")}
+	reg_hotkey(OPEN_HOTKEY, MOD_CONTROL | MOD_ALT, win.VK_Q)
+	reg_hotkey(QUIT_HOTKEY, MOD_CONTROL | MOD_ALT, win.VK_ESCAPE)
 
 	return message_loop()
+}
+
+reg_hotkey :: proc(id: win.c_int, modifiers: win.UINT, key: win.UINT) {
+	ok := win.RegisterHotKey(nil, id, modifiers, key)
+	if !ok {show_error_and_panic("Failed to register hotkey")}
 }
 
 CLASS_NAME :: "QrMainClass"
@@ -106,19 +112,25 @@ message_loop :: proc() -> int {
 Int2 :: [2]i32
 WINDOW_SIZE :: Int2 {708, 708}
 
-WM_HOTKEY :: proc(id: win.WPARAM) {
-	if APP.window != nil { return }
-	if id != HOTKEY_ID { return }
-
-	clipboard := get_clipboard_text()
-	if clipboard == "" { return }
-	if APP.atom == 0 {show_error_and_panic("atom is zero")}
-	hwnd := create_window(APP.instance, APP.atom, clipboard)
-	if hwnd == nil {show_error_and_panic("Failed to create window")}
-	APP.window = hwnd
-	win.ShowWindow(hwnd, win.SW_SHOW)
-	win.UpdateWindow(hwnd)
-	win.SetForegroundWindow(hwnd)
+WM_HOTKEY :: proc(wparam: win.WPARAM) {
+	switch wparam {
+	case OPEN_HOTKEY:
+		if APP.window != nil { return }
+		clipboard := get_clipboard_text()
+		if clipboard == "" { return }
+		if APP.atom == 0 {show_error_and_panic("atom is zero")}
+		hwnd := create_window(APP.instance, APP.atom, clipboard)
+		if hwnd == nil {show_error_and_panic("Failed to create window")}
+		APP.window = hwnd
+		win.ShowWindow(hwnd, win.SW_SHOW)
+		win.UpdateWindow(hwnd)
+		win.SetForegroundWindow(hwnd)
+	case QUIT_HOTKEY:
+		if APP.window != nil {
+			win.DestroyWindow(APP.window)
+		}
+		win.PostQuitMessage(0)
+	}
 }
 
 get_clipboard_text :: proc() -> string {
