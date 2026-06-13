@@ -211,26 +211,42 @@ WM_CREATE :: proc(hwnd: win.HWND, lparam: win.LPARAM) -> win.LRESULT {
 	if pcs == nil {show_error_and_panic("lparam is nil")}
 	params := (^CreateParams)(pcs.lpCreateParams)
 	if params == nil {show_error_and_panic("lpCreateParams is nil")}
-	set_wnd_data(hwnd, params.wnd_data)
-
-	hdc := win.GetDC(hwnd)
-	defer win.ReleaseDC(hwnd, hdc)
 
 	text := params.clipboard
 	fmt.println(text)
 
-	qr_code : [qr.BUFFER_LEN_MAX]u8
-	tmp_buf : [qr.BUFFER_LEN_MAX]u8
+	qr_code : [qr.BUFFER_LEN_MAX]u8 = ---
+	qr_size := create_qr_code(qr_code[:], text)
+	bitmap, pv_bits := create_bitmap(hwnd, qr_size)
+	pv_slice := pv_slice(pv_bits, int(qr_size))
+	draw_qr_code(pv_slice, qr_code[:], qr_size)
+
+	wnd_data := params.wnd_data
+	wnd_data.bitmap = bitmap
+	wnd_data.qr_size = qr_size
+	set_wnd_data(hwnd, wnd_data)
+
+	return 0
+}
+
+create_qr_code :: proc(dest: []u8, text: string) -> (qr_size: c.int) {
+	tmp_buf : [qr.BUFFER_LEN_MAX]u8 = ---
 	ecc :: qr.Ecc.LOW
-	ok := qr.encodeText(cstring(raw_data(text)), raw_data(tmp_buf[:]), raw_data(qr_code[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
+	ok := qr.encodeText(cstring(raw_data(text)), raw_data(tmp_buf[:]), raw_data(dest[:]), ecc, qr.VERSION_MIN, qr.VERSION_MAX, qr.Mask.AUTO, true)
 	if !ok {show_error_and_panic("Failed to create qr code")}
-	qr_size : c.int = qr.getSize(raw_data(qr_code[:]))
+	qr_size = qr.getSize(raw_data(dest[:]))
+	return
+}
+
+create_bitmap :: proc(hwnd: win.HWND, size: c.int) -> (bitmap: win.HBITMAP, pv_bits: [^]u8) {
+	hdc := win.GetDC(hwnd)
+	defer win.ReleaseDC(hwnd, hdc)
 
 	bitmap_info := BitmapInfo {
 		bmiHeader = win.BITMAPINFOHEADER {
 			biSize        = size_of(win.BITMAPINFOHEADER),
-			biWidth       = qr_size,
-			biHeight      = -qr_size, // minus for top-down
+			biWidth       = size,
+			biHeight      = -size, // minus for top-down
 			biPlanes      = 1,
 			biBitCount    = 8,
 			biCompression = win.BI_RGB,
@@ -239,19 +255,16 @@ WM_CREATE :: proc(hwnd: win.HWND, lparam: win.LPARAM) -> win.LRESULT {
 		bmiColors = {WHITE, BLACK},
 	}
 
-	pv_bits: [^]u8
-	params.wnd_data.bitmap = win.CreateDIBSection(hdc, cast(^win.BITMAPINFO)&bitmap_info, win.DIB_RGB_COLORS, (^rawptr)(&pv_bits), nil, 0)
-	params.wnd_data.qr_size = qr_size
-	stride := qr_size + 3
-	total_size := stride * qr_size
-	draw_qr_code(mem.slice_ptr(pv_bits, int(total_size)), qr_code[:], qr_size)
-
-	return 0
+	bitmap = win.CreateDIBSection(hdc, cast(^win.BITMAPINFO)&bitmap_info, win.DIB_RGB_COLORS, (^rawptr)(&pv_bits), nil, 0)
+	return
 }
 
-set_wnd_data :: #force_inline proc(hwnd: win.HWND, data: ^Window) {win.SetWindowLongPtrW(hwnd, win.GWLP_USERDATA, win.LONG_PTR(uintptr(data)))}
-
-get_wnd_data :: #force_inline proc(hwnd: win.HWND) -> ^Window {return (^Window)(rawptr(uintptr(win.GetWindowLongPtrW(hwnd, win.GWLP_USERDATA))))}
+pv_slice :: proc(pv_bits: [^]u8, qr_size: int) -> (dest: []u8) {
+	stride := qr_size + 3
+	total_size := stride * qr_size
+	dest = mem.slice_ptr(pv_bits, total_size)
+	return
+}
 
 draw_qr_code :: #force_inline proc(pv_bits: []u8, qr_code: []u8, qr_size: c.int) {
 	mem.zero_slice(pv_bits)
@@ -265,6 +278,10 @@ draw_qr_code :: #force_inline proc(pv_bits: []u8, qr_code: []u8, qr_size: c.int)
 	    }
 	}
 }
+
+set_wnd_data :: #force_inline proc(hwnd: win.HWND, data: ^Window) {win.SetWindowLongPtrW(hwnd, win.GWLP_USERDATA, win.LONG_PTR(uintptr(data)))}
+
+get_wnd_data :: #force_inline proc(hwnd: win.HWND) -> ^Window {return (^Window)(rawptr(uintptr(win.GetWindowLongPtrW(hwnd, win.GWLP_USERDATA))))}
 
 WM_PAINT :: proc(hwnd: win.HWND) -> win.LRESULT {
 	wnd_data := get_wnd_data(hwnd)
