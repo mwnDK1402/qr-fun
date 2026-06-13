@@ -186,6 +186,7 @@ win_proc :: proc "stdcall" (hwnd: win.HWND, msg: win.UINT, wparam: win.WPARAM, l
 	case win.WM_DESTROY:    return WM_DESTROY(hwnd)
 	case win.WM_ERASEBKGND: return 1 // paint should fill out the client area so no need to erase the background
 	case win.WM_PAINT:      return WM_PAINT(hwnd)
+	case win.WM_NCHITTEST:  return win.HTCAPTION
 	case win.WM_CHAR:       return WM_CHAR(hwnd, wparam, lparam)
 	case win.WM_KILLFOCUS:  return WM_KILLFOCUS(hwnd)
 	case: 				    return win.DefWindowProcW(hwnd, msg, wparam, lparam)
