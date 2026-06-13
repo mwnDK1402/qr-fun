@@ -8,7 +8,7 @@
 - [x] "Open" hotkey
 - [x] "Exit" hotkey
 - [x] Close window when focus is lost
-- [ ] Remove borders
+- [x] Remove borders
 - [ ] Open near cursor
 - [ ] Relative sizing 
 - [ ] Always on top
