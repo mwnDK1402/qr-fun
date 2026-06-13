@@ -43,7 +43,8 @@ Config_Flags :: distinct bit_set[Config_Flag;u32]
 
 App :: struct {
 	instance : win.HINSTANCE,
-	atom	 : win.ATOM
+	atom	 : win.ATOM,
+	window   : win.HWND
 }
 
 Window :: struct {
@@ -51,6 +52,8 @@ Window :: struct {
 	qrsize  : win.LONG,
 	size    : Int2
 }
+
+APP : App
 
 message_box :: #force_inline proc(text, caption: string, loc := #caller_location) {
 	win.MessageBoxW(nil, win.utf8_to_wstring(text), win.utf8_to_wstring(caption), win.MB_ICONSTOP | win.MB_OK)
@@ -133,6 +136,8 @@ WM_DESTROY :: proc(hwnd: win.HWND) -> win.LRESULT {
 		win_data.hbitmap = nil
 	}
 	free(win_data)
+
+	APP.window = nil
 	return 0
 }
 
@@ -245,7 +250,8 @@ get_clipboard_text :: proc() -> string {
     return text
 }
 
-WM_HOTKEY :: proc(app: ^App, wparam: win.WPARAM) {
+WM_HOTKEY :: proc(wparam: win.WPARAM) {
+	if APP.window != nil { return }
 	if wparam != HOTKEY_ID { return }
 
 	clipboard := get_clipboard_text()
@@ -255,18 +261,20 @@ WM_HOTKEY :: proc(app: ^App, wparam: win.WPARAM) {
 	params := new(CreateParams, context.temp_allocator)
 	params.win_data = win_data
 	params.clipboard = clipboard
-	hwnd := create_window(app.instance, app.atom, params)
+	if APP.atom == 0 {show_error_and_panic("atom is zero")}
+	hwnd := create_window(APP.instance, APP.atom, params)
 	if hwnd == nil {show_error_and_panic("Failed to create window")}
+	APP.window = hwnd
 	win.ShowWindow(hwnd, win.SW_SHOW)
 	win.UpdateWindow(hwnd)
 	win.SetForegroundWindow(hwnd)
 }
 
-message_loop :: proc(app: ^App) -> int {
+message_loop :: proc() -> int {
 	msg: win.MSG
 	for win.GetMessageW(&msg, nil, 0, 0) > 0 {
 		if msg.message == win.WM_HOTKEY {
-			WM_HOTKEY(app, msg.wParam)
+			WM_HOTKEY(msg.wParam)
 			continue
 		}
 		win.TranslateMessage(&msg)
@@ -285,7 +293,7 @@ run :: proc() -> int {
 	atom := register_class(instance)
 	if atom == 0 {show_error_and_panic("Failed to register window class")}
 	defer unregister_class(atom, instance)
-	app := App {
+	APP = App {
 		instance = instance,
 		atom = atom
 	}
@@ -293,7 +301,7 @@ run :: proc() -> int {
 	ok := win.RegisterHotKey(nil, HOTKEY_ID, MOD_CONTROL | MOD_ALT, win.VK_Q)
 	if !ok {show_error_and_panic("Failed to register hotkey")}
 
-	return message_loop(&app)
+	return message_loop()
 }
 
 main :: proc() {
