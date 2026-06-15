@@ -9,8 +9,8 @@
 - [x] "Exit" hotkey
 - [x] Close window when focus is lost
 - [x] Remove borders
-- [ ] Open near cursor
-- [ ] Relative sizing 
+- [x] Open near cursor
+- [x] Relative sizing 
 - [ ] Always on top
 - [ ] Copy QR to clipboard
 
