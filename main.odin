@@ -237,7 +237,6 @@ WM_CREATE :: proc(hwnd: win.HWND, lparam: win.LPARAM) -> win.LRESULT {
 	if params == nil {show_error_and_panic("lpCreateParams is nil")}
 
 	text := params.clipboard
-	fmt.println(text)
 
 	qr_code : [qr.BUFFER_LEN_MAX]u8 = ---
 	qr_size := create_qr_code(qr_code[:], text)

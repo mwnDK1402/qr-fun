@@ -3,7 +3,7 @@
 	{
 		"label": "Odin Build",
 		"command": "odin",
-		"args": ["build", "."],
+		"args": ["build", ".", "-subsystem:windows", "-o:size"],
 		"cwd": "$ZED_DIRNAME",
 		// What to do with the terminal pane and tab, after the command was started:
 		// * `always` — always show the task's pane, and focus the corresponding tab in it (default)
