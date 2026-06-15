@@ -115,7 +115,9 @@ WINDOW_SIZE :: Int2 {708, 708}
 WM_HOTKEY :: proc(wparam: win.WPARAM) {
 	switch wparam {
 	case OPEN_HOTKEY:
-		if APP.window != nil { return }
+		if APP.window != nil {
+			win.DestroyWindow(APP.window)
+		}
 		clipboard := get_clipboard_text()
 		if clipboard == "" { return }
 		if APP.atom == 0 {show_error_and_panic("atom is zero")}
