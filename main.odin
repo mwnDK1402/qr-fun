@@ -20,7 +20,6 @@ CreateParams :: struct {
 }
 
 Window :: struct {
-	size    : Int2,
 	bitmap : win.HBITMAP,
 	qr_size  : win.LONG,
 }
@@ -42,6 +41,8 @@ MOD_WIN 	:: 0x8
 
 run :: proc() -> int {
 	defer free_all(context.temp_allocator)
+
+	win.SetProcessDpiAwareness(win.PROCESS_DPI_AWARENESS.PROCESS_SYSTEM_DPI_AWARE)
 
 	// This isn't exactly equivalent to getting the hInstance argument passed to wWinMain in C,
 	// but it's good enough for all intents and purposes.
@@ -109,9 +110,6 @@ message_loop :: proc() -> int {
 	return int(msg.wParam)
 }
 
-Int2 :: [2]i32
-WINDOW_SIZE :: Int2 {708, 708}
-
 WM_HOTKEY :: proc(wparam: win.WPARAM) {
 	switch wparam {
 	case OPEN_HOTKEY:
@@ -161,24 +159,48 @@ TITLE :: "QR Fun"
 create_window :: #force_inline proc(instance: win.HINSTANCE, atom: win.ATOM, clipboard: string) -> win.HWND {
 	if atom == 0 {show_error_and_panic("atom is zero")}
 
+	pt, size := place_window()
+
 	params := new(CreateParams, context.temp_allocator)
 	params.wnd_data = new(Window)
 	params.clipboard = clipboard
-	params.wnd_data.size = WINDOW_SIZE
 
-	style :: win.WS_POPUP
-	pos := Int2{i32(win.CW_USEDEFAULT), i32(win.CW_USEDEFAULT)}
-	size := params.wnd_data.size
-	center_window(&pos, size)
-
-	return win.CreateWindowW(CLASS_NAME, TITLE, style, pos.x, pos.y, size.x, size.y, nil, nil, instance, params)
+	return win.CreateWindowW(CLASS_NAME, TITLE, win.WS_POPUP, pt.x, pt.y, size, size, nil, nil, instance, params)
 }
 
-center_window :: proc(position: ^Int2, size: Int2) {
-	if device_mode: win.DEVMODEW; win.EnumDisplaySettingsW(nil, win.ENUM_CURRENT_SETTINGS, &device_mode) {
-		device_size := Int2{i32(device_mode.dmPelsWidth), i32(device_mode.dmPelsHeight)}
-		position^ = (device_size - size) / 2
-	}
+place_window :: proc() -> (pt: win.POINT, size: win.LONG) {
+	// Get cursor's virtual screen position
+	cursor_pt: win.POINT
+	win.GetCursorPos(&cursor_pt)
+	monitor := win.MonitorFromPoint(cursor_pt, win.Monitor_From_Flags.MONITOR_DEFAULTTOPRIMARY)
+
+	mi: win.MONITORINFO
+	mi.cbSize = size_of(win.MONITORINFO)
+	win.GetMonitorInfoW(monitor, &mi)
+
+	// Only place window within the monitor's work area
+	monitor_left   := mi.rcWork.left
+	monitor_top    := mi.rcWork.top
+	monitor_width  := mi.rcWork.right - mi.rcWork.left
+	monitor_height := mi.rcWork.bottom - mi.rcWork.top
+
+	// Scale window size relative to monitor width
+	size = win.LONG(f32(monitor_width) * .2)
+
+	// Ensure the window is not pushed off-screen (clamp to monitor edge)
+	min_x := cursor_pt.x - (size / 2)
+	max_x := min_x + size
+	if min_x < monitor_left { pt.x = monitor_left }
+	else if max_x > monitor_left + monitor_width { pt.x = monitor_left + monitor_width - size }
+	else { pt.x = min_x }
+
+	min_y := cursor_pt.y - (size / 2)
+	max_y := min_y + size
+	if min_y < monitor_top { pt.y = monitor_top }
+	else if max_y > monitor_top + monitor_height { pt.y = monitor_top + monitor_height - size }
+	else { pt.y = min_y }
+
+	return
 }
 
 win_proc :: proc "stdcall" (hwnd: win.HWND, msg: win.UINT, wparam: win.WPARAM, lparam: win.LPARAM) -> win.LRESULT {
@@ -298,14 +320,18 @@ WM_PAINT :: proc(hwnd: win.HWND) -> win.LRESULT {
 		defer win.DeleteDC(hdc_source)
 
 		win.SelectObject(hdc_source, win.HGDIOBJ(wnd_data.bitmap))
-		client_size := get_rect_size(&ps.rcPaint)
-		win.StretchBlt(hdc, 0, 0, client_size.x, client_size.y, hdc_source, 0, 0, wnd_data.qr_size, wnd_data.qr_size, win.SRCCOPY)
+		width, height := get_rect_size(&ps.rcPaint)
+		win.StretchBlt(hdc, 0, 0, width, height, hdc_source, 0, 0, wnd_data.qr_size, wnd_data.qr_size, win.SRCCOPY)
 	}
 
 	return 0
 }
 
-get_rect_size :: #force_inline proc(rect: ^win.RECT) -> Int2 { return { (rect.right - rect.left), (rect.bottom - rect.top) } }
+get_rect_size :: #force_inline proc(rect: ^win.RECT) -> (w: i32, h: i32) {
+	w = rect.right - rect.left
+	h = rect.bottom - rect.top
+	return
+}
 
 WM_CHAR :: proc(hwnd: win.HWND, wparam: win.WPARAM, lparam: win.LPARAM) -> win.LRESULT {
 	switch wparam {
