@@ -1,3 +1,15 @@
+# Building
+
+After [getting started with Odin](https://odin-lang.org/docs/install/), you can build the project with:
+```
+odin build . -subsystem:windows
+```
+
+Running the executable while testing can be done with:
+```
+odin run .
+```
+
 # Todo
 
 - [x] Open window
